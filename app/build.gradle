@@ -11,10 +11,19 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    signingConfigs {
+        release {
+            keyAlias 'AccelerometerServiceKey'
+            keyPassword 'MyPassword'
+            storeFile file('AccelerometerServiceKey.jks')
+            storePassword 'MyPassword'
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
     packagingOptions {
