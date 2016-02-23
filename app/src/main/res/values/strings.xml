@@ -5,4 +5,12 @@
     <string name="navigation_drawer_close">Close navigation drawer</string>
 
     <string name="action_settings">Settings</string>
+    <string name="desc_google_icon">Google Logo</string>
+    <string name="desc_firebase_icon">FireBase Logo</string>
+    <string name="title_text">Accelerometer App\nusing</string>
+    <string name="signed_out">Signed out</string>
+    <string name="google_icon">Google Sign-In</string>
+    <string name="firebase_icon">FireBase</string>
+    <string name="unreg_user_desc">If You are signed out\n
+        you can only see an authenticated users data\nbut not save Your own!</string>
 </resources>
