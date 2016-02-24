@@ -24,7 +24,6 @@ public class AccelerometerService extends Service
 
     private long lastUpdate = 0;
     private SensorManager mSensorManager;
-    private Sensor mAccelerometer;
     private Firebase mSamplesRef;
     private int mCounter = 0;
 
@@ -75,8 +74,8 @@ public class AccelerometerService extends Service
         Log.d(MainActivity.MAIN_TAG, "AccelerometerService: onCreate");
 
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_UI);
+        Sensor accSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mSensorManager.registerListener(this, accSensor, SensorManager.SENSOR_DELAY_UI);
 
         if (mSamplesRef != null) {
             mSamplesRef.addListenerForSingleValueEvent(new ValueEventListener() {
@@ -110,8 +109,6 @@ public class AccelerometerService extends Service
                     lastUpdate = curTime;
                 }
             }
-        } else {
-
         }
     }
 
