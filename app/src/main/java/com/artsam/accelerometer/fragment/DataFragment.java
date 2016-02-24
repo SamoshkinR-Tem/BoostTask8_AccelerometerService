@@ -11,6 +11,7 @@ import android.view.ViewGroup;
 
 import com.artsam.accelerometer.MainActivity;
 import com.artsam.accelerometer.R;
+import com.artsam.accelerometer.adapter.DataRecAdapter;
 import com.artsam.accelerometer.entity.Sample;
 
 import java.util.ArrayList;
@@ -29,10 +30,10 @@ public class DataFragment extends Fragment {
         Log.d(MainActivity.MAIN_TAG, "DataFragment: onCreateView - " );
 
         View data = inflater.inflate(R.layout.frag_data, container, false);
-//
-//        mRecView = (RecyclerView) data.findViewById(R.id.rv_samples);
-//        mRecView.setLayoutManager(new LinearLayoutManager(getContext()));
-//        mRecView.setAdapter(new DataRecAdapter(mSamples));
+
+        mRecView = (RecyclerView) data.findViewById(R.id.rv_samples);
+        mRecView.setLayoutManager(new LinearLayoutManager(getContext()));
+        mRecView.setAdapter(new DataRecAdapter(mSamples));
 //
 //        mPlotView = (MyPlotView) data.findViewById(R.id.my_plot_View);
 //        mPlotView.setSamples(mSamples);
