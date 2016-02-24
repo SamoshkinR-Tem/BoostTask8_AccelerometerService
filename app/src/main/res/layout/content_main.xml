@@ -95,7 +95,7 @@
             android:gravity="center"
             android:maxLines="5"
             android:scrollbars="vertical"
-            android:text="@string/unreg_user_desc"
+            android:text="@string/desc_unreg_user"
             android:textColor="@android:color/white"
             android:textSize="14sp" />
 
@@ -108,7 +108,7 @@
             android:gravity="center">
 
             <com.google.android.gms.common.SignInButton
-                android:id="@+id/sign_in_button"
+                android:id="@+id/btn_sign_in"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:visibility="visible"
