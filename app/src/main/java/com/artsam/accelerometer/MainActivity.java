@@ -21,11 +21,15 @@ import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.CompoundButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.artsam.accelerometer.entity.User;
 import com.artsam.accelerometer.service.AccelerometerService;
 import com.firebase.client.AuthData;
+import com.firebase.client.ChildEventListener;
+import com.firebase.client.DataSnapshot;
 import com.firebase.client.Firebase;
 import com.firebase.client.FirebaseError;
 import com.google.android.gms.auth.GoogleAuthException;
@@ -41,8 +45,10 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.OptionalPendingResult;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
+import com.squareup.picasso.Picasso;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener,
@@ -54,18 +60,23 @@ public class MainActivity extends AppCompatActivity
     public static final int FIRST_SAMPLE_POS = 0;
     public static final int TIME_INTERVAL = 1000;
 
+    private static final int NAV_HEADER_MAIN = 0;
     private static final int RC_SIGN_IN = 9001;
     private static final int REQ_SIGN_IN_REQUIRED = 55664;
     private static final String FIREBASE_URL = "https://accobserverservice.firebaseio.com/";
 
+
+    private Firebase mFirebaseRef = new Firebase(FIREBASE_URL);
+    private Firebase mUsersRef = new Firebase(FIREBASE_URL).child("users");
     private Firebase mSamplesRef;
 
     private boolean mIsBound;
     private Context mContext = this;
     private String mAccountName;
+    private Menu mNavigationMenu;
+    private TextView mStatusTextView;
     private GoogleApiClient mGoogleApiClient;
     private ProgressDialog mProgressDialog;
-    private TextView mStatusTextView;
     private ServiceConnection mConnection = new ServiceConnection() {
         private AccelerometerService mAccBoundService;
 
@@ -105,12 +116,14 @@ public class MainActivity extends AppCompatActivity
 
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
-                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+                this, drawer, toolbar, R.string.navigation_drawer_open,
+                R.string.navigation_drawer_close);
         drawer.setDrawerListener(toggle);
         toggle.syncState();
 
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
+        setNavigationMenu(navigationView.getMenu());
 
         // Configure sign-in to request the user's ID, email address, and basic
         // profile. ID and basic profile are included in DEFAULT_SIGN_IN.
@@ -130,6 +143,39 @@ public class MainActivity extends AppCompatActivity
                 .enableAutoManage(this /* FragmentActivity */, this /* OnConnectionFailedListener */)
                 .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
                 .build();
+
+        mStatusTextView = (TextView) findViewById(R.id.tv_status);
+    }
+
+    public void setNavigationMenu(Menu navigationMenu) {
+        this.mNavigationMenu = navigationMenu;
+
+        mUsersRef.addChildEventListener(new ChildEventListener() {
+            @Override
+            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                User user = dataSnapshot.getValue(User.class);
+                mNavigationMenu.add(R.id.nav_users_group,
+                        user.getUid().hashCode(),
+                        mNavigationMenu.size(),
+                        user.getDisplayName());
+            }
+
+            @Override
+            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+            }
+
+            @Override
+            public void onChildRemoved(DataSnapshot dataSnapshot) {
+            }
+
+            @Override
+            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+            }
+
+            @Override
+            public void onCancelled(FirebaseError firebaseError) {
+            }
+        });
     }
 
     @Override
@@ -195,15 +241,12 @@ public class MainActivity extends AppCompatActivity
         if (result.isSuccess()) {
             // Signed in successfully, show authenticated UI.
             GoogleSignInAccount acct = result.getSignInAccount();
-
             if (acct != null) {
                 mAccountName = acct.getEmail();
-
                 // run an async task to get an OAuth2 token for the account
                 new RetrieveTokenTask().execute(mAccountName);
             }
 
-//            mStatusTextView.setText(getString(R.string.signed_in_fmt, acct.getDisplayName()));
             updateUI(true);
         } else {
             // Signed out, show unauthenticated UI.
@@ -237,16 +280,55 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void updateUI(boolean signedIn) {
-        Log.d(MAIN_TAG, "MainActivity: updateUI");
         if (signedIn) {
+            Log.d(MAIN_TAG, "MainActivity: updateUI -- true");
+
             findViewById(R.id.btn_sign_in).setVisibility(View.GONE);
+
+            if(mFirebaseRef.getAuth() != null) {
+                setNavigationHeader(mFirebaseRef.getAuth());
+            }
+
 //            findViewById(R.id.btn_sign_out).setVisibility(View.VISIBLE);
         } else {
-//            mStatusTextView.setText(R.string.signed_out);
-
+            Log.d(MAIN_TAG, "MainActivity: updateUI -- false");
             findViewById(R.id.btn_sign_in).setVisibility(View.VISIBLE);
+
+            setNavigationHeader(null);
 //            findViewById(R.id.btn_sign_out).setVisibility(View.GONE);
         }
+    }
+
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.btn_sign_in:
+                signIn();
+                break;
+        }
+    }
+
+    private void signIn() {
+        Log.d(MAIN_TAG, "MainActivity: signIn");
+        if(mFirebaseRef.getAuth() == null){
+            Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient);
+            startActivityForResult(signInIntent, RC_SIGN_IN);
+        }
+    }
+
+    private void signOut() {
+        Log.d(MAIN_TAG, "MainActivity: signOut");
+        Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback(
+                new ResultCallback<Status>() {
+                    @Override
+                    public void onResult(Status status) {
+
+                        updateUI(false);
+
+                    }
+                });
+
+        new Firebase(FIREBASE_URL).unauth();
     }
 
     @Override
@@ -265,53 +347,21 @@ public class MainActivity extends AppCompatActivity
         // Handle navigation view item clicks here.
         int id = item.getItemId();
 
-        if (id == R.id.nav_camera) {
-            // Handle the camera action
-        } else if (id == R.id.nav_gallery) {
-
-        } else if (id == R.id.nav_slideshow) {
-
-        } else if (id == R.id.nav_manage) {
-
-        } else if (id == R.id.nav_share) {
-
-        } else if (id == R.id.nav_send) {
-
+        for (int i = 0; i < mNavigationMenu.size(); i++) {
+            if (id == mNavigationMenu.getItem(i).getItemId()) {
+                Log.d(MAIN_TAG, "NavMenuItem: " + mNavigationMenu.getItem(i).getItemId()
+                        + " selected");
+            }
+        }
+        if (id == R.id.nav_sign_in) {
+            signIn();
+        } else if (id == R.id.nav_sign_out) {
+            signOut();
         }
 
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
-    }
-
-    @Override
-    public void onClick(View v) {
-        switch (v.getId()) {
-            case R.id.btn_sign_in:
-                signIn();
-                break;
-        }
-    }
-
-    private void signIn() {
-        Log.d(MAIN_TAG, "MainActivity: signIn");
-        Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient);
-        startActivityForResult(signInIntent, RC_SIGN_IN);
-    }
-
-    private void signOut() {
-        Log.d(MAIN_TAG, "MainActivity: signOut");
-        Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback(
-                new ResultCallback<Status>() {
-                    @Override
-                    public void onResult(Status status) {
-
-                        updateUI(false);
-
-                    }
-                });
-//        sSamplesRef = null;
-//        updateDataFrag();
     }
 
     @Override
@@ -352,7 +402,6 @@ public class MainActivity extends AppCompatActivity
         doUnbindService();
     }
 
-
     private class RetrieveTokenTask extends AsyncTask<String, Void, String> {
 
         @Override
@@ -377,43 +426,56 @@ public class MainActivity extends AppCompatActivity
             super.onPostExecute(s);
             authFireBase(s);
         }
+    }
 
-        private void authFireBase(String token) {
-            Log.d(MAIN_TAG, "TOKEN IS " + token);
+    private void authFireBase(String token) {
+        Log.d(MAIN_TAG, "TOKEN IS " + token);
 
-            if (token != null) {
-                // Successfully got OAuth token, now login with Google
-//                sUsersRef.authWithOAuthToken("google", token, new AuthResultHandler("google"));
-            }
+        if (token != null) {
+            // Successfully got OAuth token, now login with Google
+            mFirebaseRef.authWithOAuthToken("google", token, new Firebase.AuthResultHandler() {
+                @Override
+                public void onAuthenticated(AuthData authData) {
+                    // Save authenticated user to FireBase
+                    saveUserToFirebase(authData);
+
+                    setNavigationHeader(mFirebaseRef.getAuth());
+                }
+
+                private void saveUserToFirebase(AuthData authData) {
+                    Log.d(MAIN_TAG, "MainActivity; saveUserToFirebase");
+                    Map<String, Object> providerData = authData.getProviderData();
+                    User user = new User((String) providerData.get("id"),
+                            (String) providerData.get("displayName"),
+                            (String) providerData.get("email"),
+                            (String) providerData.get("profileImageURL"));
+                    mUsersRef.child((String) providerData.get("id")).setValue(user);
+                }
+
+                @Override
+                public void onAuthenticationError(FirebaseError firebaseError) {
+
+                }
+            });
         }
     }
 
-    /**
-     * Utility class for authentication results
-     */
-    private class AuthResultHandler implements Firebase.AuthResultHandler {
+    private void setNavigationHeader(AuthData auth) {
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
 
-        private final String provider;
-
-        public AuthResultHandler(String provider) {
-            this.provider = provider;
-        }
-
-        @Override
-        public void onAuthenticated(AuthData authData) {
-            Log.d(MAIN_TAG, provider + " auth successful \n" +
-                    "authData: " + authData.toString());
-
-            // Save authenticated user to FireBase
-//            sUsersRef.child(authData.getUid()).setValue(authData);
-
-//            if (sSamplesRef != null) sSamplesRef.removeEventListener(sChildEventListener);
-//            sSamplesRef = new Firebase(FIREBASE_URL).child("measurements").child(authData.getUid());
-//            updateDataFrag();
-        }
-
-        @Override
-        public void onAuthenticationError(FirebaseError firebaseError) {
+        if (auth != null) {
+            View navView = navigationView.getHeaderView(NAV_HEADER_MAIN);
+            Picasso.with(mContext)
+                    .load((String) auth.getProviderData().get("profileImageURL"))
+                    .into((ImageView) navView.findViewById(R.id.iv_nav_header_photo));
+            ((TextView) navView.findViewById(R.id.tv_nav_header_name))
+                    .setText((String) auth.getProviderData().get("displayName"));
+            ((TextView) navView.findViewById(R.id.tv_nav_header_email))
+                    .setText((String) auth.getProviderData().get("email"));
+        } else {
+            Log.d(MAIN_TAG, "MainActivity; setNavigationHeader -- null");
+            navigationView.removeHeaderView(navigationView.getHeaderView(NAV_HEADER_MAIN));
+            navigationView.inflateHeaderView(R.layout.nav_header_main);
         }
     }
 }
