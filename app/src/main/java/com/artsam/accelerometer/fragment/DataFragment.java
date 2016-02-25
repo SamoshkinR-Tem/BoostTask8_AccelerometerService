@@ -28,7 +28,8 @@ public class DataFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        Log.d(MainActivity.MAIN_TAG, "DataFragment: onCreateView - " );
+        Log.d(MainActivity.MAIN_TAG, "DataFragment: onCreateView - "
+                + getArguments().getString(""));
 
         View data = inflater.inflate(R.layout.frag_data, container, false);
 
@@ -38,7 +39,7 @@ public class DataFragment extends Fragment {
 
         mPlotView = (MyPlotView) data.findViewById(R.id.my_plot_View);
         mPlotView.setSamples(mSamples);
-//
+
 //        if(MainActivity.sSamplesRef != null){
 //            MainActivity.sChildEventListener = MainActivity.sSamplesRef
 //                    .addChildEventListener(new MyChildEventListener(mRecView, mPlotView));

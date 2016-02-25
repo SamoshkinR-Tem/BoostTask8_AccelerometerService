@@ -25,13 +25,16 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.artsam.accelerometer.entity.Sample;
 import com.artsam.accelerometer.entity.User;
+import com.artsam.accelerometer.fragment.DataFragment;
 import com.artsam.accelerometer.service.AccelerometerService;
 import com.firebase.client.AuthData;
 import com.firebase.client.ChildEventListener;
 import com.firebase.client.DataSnapshot;
 import com.firebase.client.Firebase;
 import com.firebase.client.FirebaseError;
+import com.firebase.client.Query;
 import com.google.android.gms.auth.GoogleAuthException;
 import com.google.android.gms.auth.GoogleAuthUtil;
 import com.google.android.gms.auth.UserRecoverableAuthException;
@@ -48,7 +51,12 @@ import com.google.android.gms.common.api.Status;
 import com.squareup.picasso.Picasso;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
+
+// TODO  read about realm
+// TODO ContentProvider
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener,
@@ -68,15 +76,16 @@ public class MainActivity extends AppCompatActivity
 
     private Firebase mFirebaseRef = new Firebase(FIREBASE_URL);
     private Firebase mUsersRef = new Firebase(FIREBASE_URL).child("users");
-    private Firebase mSamplesRef;
+    private Firebase mSamplesRef = new Firebase(FIREBASE_URL).child("measurements");
 
     private boolean mIsBound;
     private Context mContext = this;
     private String mAccountName;
     private Menu mNavigationMenu;
-    private TextView mStatusTextView;
     private GoogleApiClient mGoogleApiClient;
     private ProgressDialog mProgressDialog;
+    private HashMap<Integer, String> mUsersUid = new HashMap<>();
+    private HashMap<String, String> mUsersDataBranch = new HashMap<String, String>();
     private ServiceConnection mConnection = new ServiceConnection() {
         private AccelerometerService mAccBoundService;
 
@@ -144,7 +153,7 @@ public class MainActivity extends AppCompatActivity
                 .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
                 .build();
 
-        mStatusTextView = (TextView) findViewById(R.id.tv_status);
+        setSamplesRefListener();
     }
 
     public void setNavigationMenu(Menu navigationMenu) {
@@ -154,10 +163,38 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
                 User user = dataSnapshot.getValue(User.class);
+                int itemId = user.getUid().hashCode();
                 mNavigationMenu.add(R.id.nav_users_group,
-                        user.getUid().hashCode(),
+                        itemId,
                         mNavigationMenu.size(),
                         user.getDisplayName());
+                mUsersUid.put(itemId, user.getUid());
+            }
+
+            @Override
+            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+            }
+
+            @Override
+            public void onChildRemoved(DataSnapshot dataSnapshot) {
+            }
+
+            @Override
+            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+            }
+
+            @Override
+            public void onCancelled(FirebaseError firebaseError) {
+            }
+        });
+    }
+
+    private void setSamplesRefListener() {
+        mSamplesRef.addChildEventListener(new ChildEventListener() {
+            @Override
+            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                mSamplesRef = dataSnapshot.child((String) mFirebaseRef.getAuth()
+                        .getProviderData().get("id")).getRef().getParent().child("data");
             }
 
             @Override
@@ -283,20 +320,42 @@ public class MainActivity extends AppCompatActivity
         if (signedIn) {
             Log.d(MAIN_TAG, "MainActivity: updateUI -- true");
 
-            findViewById(R.id.btn_sign_in).setVisibility(View.GONE);
+            updateUI(String.valueOf(mSamplesRef));
 
-            if(mFirebaseRef.getAuth() != null) {
+            if (mFirebaseRef.getAuth() != null) {
                 setNavigationHeader(mFirebaseRef.getAuth());
             }
-
-//            findViewById(R.id.btn_sign_out).setVisibility(View.VISIBLE);
         } else {
             Log.d(MAIN_TAG, "MainActivity: updateUI -- false");
-            findViewById(R.id.btn_sign_in).setVisibility(View.VISIBLE);
+            findViewById(R.id.rl_unauthorised_content).setVisibility(View.VISIBLE);
 
             setNavigationHeader(null);
-//            findViewById(R.id.btn_sign_out).setVisibility(View.GONE);
         }
+    }
+
+    private void updateUI(String samplesRef) {
+        findViewById(R.id.rl_unauthorised_content).setVisibility(View.GONE);
+
+        DataFragment fragment = createFragmentWithFbUrl(samplesRef);
+
+        if (getSupportFragmentManager().getFragments() == null) {
+            getSupportFragmentManager().beginTransaction()
+                    .add(R.id.ll_content_main, fragment, "frag_data_tag")
+                    .commit();
+        } else {
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.ll_content_main, fragment, "frag_data_tag")
+                    .commit();
+        }
+    }
+
+    private DataFragment createFragmentWithFbUrl(String samplesRef) {
+        DataFragment fragment = new DataFragment();
+        // Supply FireBase URL input as an argument.
+        Bundle args = new Bundle();
+        args.putString("samplesRef", samplesRef);
+        fragment.setArguments(args);
+        return fragment;
     }
 
     @Override
@@ -310,7 +369,7 @@ public class MainActivity extends AppCompatActivity
 
     private void signIn() {
         Log.d(MAIN_TAG, "MainActivity: signIn");
-        if(mFirebaseRef.getAuth() == null){
+        if (mFirebaseRef.getAuth() == null) {
             Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient);
             startActivityForResult(signInIntent, RC_SIGN_IN);
         }
@@ -345,12 +404,14 @@ public class MainActivity extends AppCompatActivity
     @Override
     public boolean onNavigationItemSelected(MenuItem item) {
         // Handle navigation view item clicks here.
+        String name = item.toString();
         int id = item.getItemId();
 
         for (int i = 0; i < mNavigationMenu.size(); i++) {
             if (id == mNavigationMenu.getItem(i).getItemId()) {
-                Log.d(MAIN_TAG, "NavMenuItem: " + mNavigationMenu.getItem(i).getItemId()
+                Log.d(MAIN_TAG, "NavMenuItem: " + mNavigationMenu.getItem(i).getTitle()
                         + " selected");
+                updateUI(getUserSamplesRef(mUsersUid.get(mNavigationMenu.getItem(i).getItemId())));
             }
         }
         if (id == R.id.nav_sign_in) {
@@ -362,6 +423,11 @@ public class MainActivity extends AppCompatActivity
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
+    }
+
+    private String getUserSamplesRef(String userUid) {
+
+        return null;
     }
 
     @Override
@@ -380,10 +446,34 @@ public class MainActivity extends AppCompatActivity
         // class name because we want a specific service implementation that
         // we know will be running in our own process (and thus won't be
         // supporting component replacement by other applications).
+
+//        String sampleRef = setSampleRef();
         Intent intent = new Intent(this, AccelerometerService.class);
+//        if (sampleRef != null) {
         intent.putExtra("samplesRef", String.valueOf(mSamplesRef));
+//        } else {
+//            intent.putExtra("samplesRef", String.valueOf(null));
+//        }
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
+    }
+
+//    private String setSampleRef() {
+//        Query queryRef = mSamplesRef
+//                .orderByChild((String) mSamplesRef.getAuth().getProviderData().get("id"));
+//
+//        String samplesRef = null;
+//        if (!queryRef.toString().isEmpty()) {
+//            samplesRef = queryRef.orderByChild((String) mSamplesRef.getAuth().getProviderData().get("id")).toString();
+//        }
+//        return samplesRef;
+//    }
+
+    private Boolean userExist() {
+        Query queryRef = mSamplesRef
+                .orderByChild((String) mSamplesRef.getAuth().getProviderData().get("id"));
+
+        return queryRef.toString().isEmpty();
     }
 
     void doUnbindService() {
@@ -438,7 +528,6 @@ public class MainActivity extends AppCompatActivity
                 public void onAuthenticated(AuthData authData) {
                     // Save authenticated user to FireBase
                     saveUserToFirebase(authData);
-
                     setNavigationHeader(mFirebaseRef.getAuth());
                 }
 
@@ -450,6 +539,9 @@ public class MainActivity extends AppCompatActivity
                             (String) providerData.get("email"),
                             (String) providerData.get("profileImageURL"));
                     mUsersRef.child((String) providerData.get("id")).setValue(user);
+
+                    mFirebaseRef.child("measurements").push().child("user")
+                            .child((String) providerData.get("id")).setValue(Boolean.TRUE);
                 }
 
                 @Override
