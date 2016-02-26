@@ -25,7 +25,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.artsam.accelerometer.entity.Sample;
 import com.artsam.accelerometer.entity.User;
 import com.artsam.accelerometer.fragment.DataFragment;
 import com.artsam.accelerometer.service.AccelerometerService;
@@ -51,12 +50,8 @@ import com.google.android.gms.common.api.Status;
 import com.squareup.picasso.Picasso;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-
-// TODO  read about realm
-// TODO ContentProvider
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener,
@@ -77,15 +72,17 @@ public class MainActivity extends AppCompatActivity
     private Firebase mFirebaseRef = new Firebase(FIREBASE_URL);
     private Firebase mUsersRef = new Firebase(FIREBASE_URL).child("users");
     private Firebase mSamplesRef = new Firebase(FIREBASE_URL).child("measurements");
+    private Firebase mSamplesRefToWrite;
 
     private boolean mIsBound;
+    private boolean mUserExist = false;
+    private int mCounter;
     private Context mContext = this;
     private String mAccountName;
     private Menu mNavigationMenu;
     private GoogleApiClient mGoogleApiClient;
     private ProgressDialog mProgressDialog;
     private HashMap<Integer, String> mUsersUid = new HashMap<>();
-    private HashMap<String, String> mUsersDataBranch = new HashMap<String, String>();
     private ServiceConnection mConnection = new ServiceConnection() {
         private AccelerometerService mAccBoundService;
 
@@ -132,7 +129,7 @@ public class MainActivity extends AppCompatActivity
 
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
-        setNavigationMenu(navigationView.getMenu());
+        mNavigationMenu = navigationView.getMenu();
 
         // Configure sign-in to request the user's ID, email address, and basic
         // profile. ID and basic profile are included in DEFAULT_SIGN_IN.
@@ -152,22 +149,103 @@ public class MainActivity extends AppCompatActivity
                 .enableAutoManage(this /* FragmentActivity */, this /* OnConnectionFailedListener */)
                 .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
                 .build();
-
-        setSamplesRefListener();
     }
 
-    public void setNavigationMenu(Menu navigationMenu) {
-        this.mNavigationMenu = navigationMenu;
+    @Override
+    public void onStart() {
+        super.onStart();
 
-        mUsersRef.addChildEventListener(new ChildEventListener() {
+        Log.d(MAIN_TAG, "MainActivity: onStart");
+
+        OptionalPendingResult<GoogleSignInResult> opr = Auth.GoogleSignInApi.silentSignIn(mGoogleApiClient);
+        if (opr.isDone()) {
+            // If the user's cached credentials are valid,
+            // the OptionalPendingResult will be "done"
+            // and the GoogleSignInResult will be available instantly.
+            Log.d(MAIN_TAG, "Got cached sign-in");
+            GoogleSignInResult result = opr.get();
+            handleSignInResult(result);
+            initSamplesRefToWrite();
+            mUserExist = true;
+        } else {
+            // If the user has not previously signed in on this device or the sign-in has expired,
+            // this asynchronous branch will attempt to sign in the user silently.  Cross-device
+            // single sign-on will occur in this branch.
+            showProgressDialog();
+            opr.setResultCallback(new ResultCallback<GoogleSignInResult>() {
+                @Override
+                public void onResult(@NonNull GoogleSignInResult googleSignInResult) {
+                    hideProgressDialog();
+                    handleSignInResult(googleSignInResult);
+                }
+            });
+        }
+
+        addChELs();
+    }
+
+    private void addChELs() {
+
+        mSamplesRef.addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                mCounter++;
+            }
+
+            @Override
+            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onChildRemoved(DataSnapshot dataSnapshot) {
+
+            }
+
+            @Override
+            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onCancelled(FirebaseError firebaseError) {
+
+            }
+        });
+
+        mUsersRef.addChildEventListener(new ChildEventListener() {
+            int counter;
+
+            @Override
+            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                counter++;
                 User user = dataSnapshot.getValue(User.class);
-                int itemId = user.getUid().hashCode();
+                int navMenuItemId = user.getUid().hashCode();
+
+                initNavigationMenu(navMenuItemId, user);
+                setUsersUid(navMenuItemId, user);
+                createUserSamplesBranch(user);
+            }
+
+            private void createUserSamplesBranch(User user) {
+                if (counter == mCounter) {
+                    mUserExist = true;
+                }
+
+                if (!mUserExist) {
+                    mFirebaseRef.child("measurements").push().child("user")
+                            .child(user.getUid()).setValue(Boolean.TRUE);
+                }
+            }
+
+            private void initNavigationMenu(int itemId, User user) {
                 mNavigationMenu.add(R.id.nav_users_group,
                         itemId,
                         mNavigationMenu.size(),
                         user.getDisplayName());
+            }
+
+            private void setUsersUid(int itemId, User user) {
                 mUsersUid.put(itemId, user.getUid());
             }
 
@@ -187,61 +265,6 @@ public class MainActivity extends AppCompatActivity
             public void onCancelled(FirebaseError firebaseError) {
             }
         });
-    }
-
-    private void setSamplesRefListener() {
-        mSamplesRef.addChildEventListener(new ChildEventListener() {
-            @Override
-            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-                mSamplesRef = dataSnapshot.child((String) mFirebaseRef.getAuth()
-                        .getProviderData().get("id")).getRef().getParent().child("data");
-            }
-
-            @Override
-            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-            }
-
-            @Override
-            public void onChildRemoved(DataSnapshot dataSnapshot) {
-            }
-
-            @Override
-            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
-            }
-
-            @Override
-            public void onCancelled(FirebaseError firebaseError) {
-            }
-        });
-    }
-
-    @Override
-    public void onStart() {
-        super.onStart();
-
-        Log.d(MAIN_TAG, "MainActivity: onStart");
-
-        OptionalPendingResult<GoogleSignInResult> opr = Auth.GoogleSignInApi.silentSignIn(mGoogleApiClient);
-        if (opr.isDone()) {
-            // If the user's cached credentials are valid,
-            // the OptionalPendingResult will be "done"
-            // and the GoogleSignInResult will be available instantly.
-            Log.d(MAIN_TAG, "Got cached sign-in");
-            GoogleSignInResult result = opr.get();
-            handleSignInResult(result);
-        } else {
-            // If the user has not previously signed in on this device or the sign-in has expired,
-            // this asynchronous branch will attempt to sign in the user silently.  Cross-device
-            // single sign-on will occur in this branch.
-            showProgressDialog();
-            opr.setResultCallback(new ResultCallback<GoogleSignInResult>() {
-                @Override
-                public void onResult(@NonNull GoogleSignInResult googleSignInResult) {
-                    hideProgressDialog();
-                    handleSignInResult(googleSignInResult);
-                }
-            });
-        }
     }
 
     @Override
@@ -323,13 +346,32 @@ public class MainActivity extends AppCompatActivity
             updateUI(String.valueOf(mSamplesRef));
 
             if (mFirebaseRef.getAuth() != null) {
-                setNavigationHeader(mFirebaseRef.getAuth());
+                initNavigationHeader(mFirebaseRef.getAuth());
             }
         } else {
             Log.d(MAIN_TAG, "MainActivity: updateUI -- false");
             findViewById(R.id.rl_unauthorised_content).setVisibility(View.VISIBLE);
 
-            setNavigationHeader(null);
+            initNavigationHeader(null);
+        }
+    }
+
+    private void initNavigationHeader(AuthData auth) {
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+
+        if (auth != null) {
+            View navView = navigationView.getHeaderView(NAV_HEADER_MAIN);
+            Picasso.with(mContext)
+                    .load((String) auth.getProviderData().get("profileImageURL"))
+                    .into((ImageView) navView.findViewById(R.id.iv_nav_header_photo));
+            ((TextView) navView.findViewById(R.id.tv_nav_header_name))
+                    .setText((String) auth.getProviderData().get("displayName"));
+            ((TextView) navView.findViewById(R.id.tv_nav_header_email))
+                    .setText((String) auth.getProviderData().get("email"));
+        } else {
+            Log.d(MAIN_TAG, "MainActivity; initNavigationHeader -- null");
+            navigationView.removeHeaderView(navigationView.getHeaderView(NAV_HEADER_MAIN));
+            navigationView.inflateHeaderView(R.layout.nav_header_main);
         }
     }
 
@@ -404,7 +446,6 @@ public class MainActivity extends AppCompatActivity
     @Override
     public boolean onNavigationItemSelected(MenuItem item) {
         // Handle navigation view item clicks here.
-        String name = item.toString();
         int id = item.getItemId();
 
         for (int i = 0; i < mNavigationMenu.size(); i++) {
@@ -447,33 +488,10 @@ public class MainActivity extends AppCompatActivity
         // we know will be running in our own process (and thus won't be
         // supporting component replacement by other applications).
 
-//        String sampleRef = setSampleRef();
         Intent intent = new Intent(this, AccelerometerService.class);
-//        if (sampleRef != null) {
-        intent.putExtra("samplesRef", String.valueOf(mSamplesRef));
-//        } else {
-//            intent.putExtra("samplesRef", String.valueOf(null));
-//        }
+        intent.putExtra("samplesRef", String.valueOf(mSamplesRefToWrite));
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
-    }
-
-//    private String setSampleRef() {
-//        Query queryRef = mSamplesRef
-//                .orderByChild((String) mSamplesRef.getAuth().getProviderData().get("id"));
-//
-//        String samplesRef = null;
-//        if (!queryRef.toString().isEmpty()) {
-//            samplesRef = queryRef.orderByChild((String) mSamplesRef.getAuth().getProviderData().get("id")).toString();
-//        }
-//        return samplesRef;
-//    }
-
-    private Boolean userExist() {
-        Query queryRef = mSamplesRef
-                .orderByChild((String) mSamplesRef.getAuth().getProviderData().get("id"));
-
-        return queryRef.toString().isEmpty();
     }
 
     void doUnbindService() {
@@ -528,20 +546,19 @@ public class MainActivity extends AppCompatActivity
                 public void onAuthenticated(AuthData authData) {
                     // Save authenticated user to FireBase
                     saveUserToFirebase(authData);
-                    setNavigationHeader(mFirebaseRef.getAuth());
+                    initNavigationHeader(mFirebaseRef.getAuth());
+                    checkUserExist((String) authData.getProviderData().get("id"));
+                    initSamplesRefToWrite();
                 }
 
                 private void saveUserToFirebase(AuthData authData) {
                     Log.d(MAIN_TAG, "MainActivity; saveUserToFirebase");
-                    Map<String, Object> providerData = authData.getProviderData();
+                    final Map<String, Object> providerData = authData.getProviderData();
                     User user = new User((String) providerData.get("id"),
                             (String) providerData.get("displayName"),
                             (String) providerData.get("email"),
                             (String) providerData.get("profileImageURL"));
                     mUsersRef.child((String) providerData.get("id")).setValue(user);
-
-                    mFirebaseRef.child("measurements").push().child("user")
-                            .child((String) providerData.get("id")).setValue(Boolean.TRUE);
                 }
 
                 @Override
@@ -552,22 +569,67 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private void setNavigationHeader(AuthData auth) {
-        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+    public void initSamplesRefToWrite() {
+        Query queryRef = mSamplesRef.orderByChild((String) mFirebaseRef
+                .getAuth().getProviderData().get("id"));
+        queryRef.addChildEventListener(new ChildEventListener() {
+            @Override
+            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                mSamplesRefToWrite = dataSnapshot.child((String) mFirebaseRef.getAuth()
+                        .getProviderData().get("id")).getRef().getParent().child("data");
+            }
 
-        if (auth != null) {
-            View navView = navigationView.getHeaderView(NAV_HEADER_MAIN);
-            Picasso.with(mContext)
-                    .load((String) auth.getProviderData().get("profileImageURL"))
-                    .into((ImageView) navView.findViewById(R.id.iv_nav_header_photo));
-            ((TextView) navView.findViewById(R.id.tv_nav_header_name))
-                    .setText((String) auth.getProviderData().get("displayName"));
-            ((TextView) navView.findViewById(R.id.tv_nav_header_email))
-                    .setText((String) auth.getProviderData().get("email"));
-        } else {
-            Log.d(MAIN_TAG, "MainActivity; setNavigationHeader -- null");
-            navigationView.removeHeaderView(navigationView.getHeaderView(NAV_HEADER_MAIN));
-            navigationView.inflateHeaderView(R.layout.nav_header_main);
-        }
+            @Override
+            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onChildRemoved(DataSnapshot dataSnapshot) {
+
+            }
+
+            @Override
+            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onCancelled(FirebaseError firebaseError) {
+
+            }
+        });
+    }
+
+    private Boolean checkUserExist(String id) {
+        mUserExist = false;
+        Query queryRef = mSamplesRef.orderByChild(id);
+        queryRef.addChildEventListener(new ChildEventListener() {
+            @Override
+            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                mUserExist = true;
+            }
+
+            @Override
+            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onChildRemoved(DataSnapshot dataSnapshot) {
+
+            }
+
+            @Override
+            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onCancelled(FirebaseError firebaseError) {
+
+            }
+        });
+        return mUserExist;
     }
 }
