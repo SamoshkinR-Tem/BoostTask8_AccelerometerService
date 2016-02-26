@@ -94,7 +94,7 @@ public class AccelerometerService extends Service
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        Log.d(MainActivity.MAIN_TAG, "AccelerometerService: onSensorChanged");
+//        Log.d(MainActivity.MAIN_TAG, "AccelerometerService: onSensorChanged");
         if (mSamplesRef != null) {
             if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
                 long curTime = System.currentTimeMillis();

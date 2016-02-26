@@ -177,6 +177,7 @@ public class MainActivity extends AppCompatActivity
                 public void onResult(@NonNull GoogleSignInResult googleSignInResult) {
                     hideProgressDialog();
                     handleSignInResult(googleSignInResult);
+                    mUserExist = true;
                 }
             });
         }
@@ -319,7 +320,7 @@ public class MainActivity extends AppCompatActivity
         // An unresolvable error has occurred and Google APIs (including Sign-In)
         // will not be available.
         Log.d(MAIN_TAG, "MainActivity: onConnectionFailed - " + connectionResult);
-        Toast.makeText(this, "ConnectionFailed; " + connectionResult, Toast.LENGTH_SHORT);
+        Toast.makeText(this, "ConnectionFailed; " + connectionResult, Toast.LENGTH_SHORT).show();
     }
 
     private void showProgressDialog() {
@@ -575,8 +576,12 @@ public class MainActivity extends AppCompatActivity
         queryRef.addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-                mSamplesRefToWrite = dataSnapshot.child((String) mFirebaseRef.getAuth()
-                        .getProviderData().get("id")).getRef().getParent().child("data");
+                if (dataSnapshot.child("user").getChildren().iterator().next().getKey()
+                        .equals(mFirebaseRef.getAuth().getProviderData().get("id"))) {
+                    mSamplesRefToWrite = dataSnapshot.child("data").getRef();
+                    Log.d(MAIN_TAG, "initSamplesRefToWrite\nonChildAdded: "
+                            + String.valueOf(mSamplesRefToWrite));
+                }
             }
 
             @Override
