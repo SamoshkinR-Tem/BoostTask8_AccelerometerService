@@ -26,7 +26,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.artsam.accelerometer.entity.User;
-import com.artsam.accelerometer.fragment.DataFragment;
 import com.artsam.accelerometer.service.AccelerometerService;
 import com.firebase.client.AuthData;
 import com.firebase.client.ChildEventListener;
@@ -68,14 +67,13 @@ public class MainActivity extends AppCompatActivity
     private static final int REQ_SIGN_IN_REQUIRED = 55664;
     private static final String FIREBASE_URL = "https://accobserverservice.firebaseio.com/";
 
-
     private Firebase mFirebaseRef = new Firebase(FIREBASE_URL);
     private Firebase mUsersRef = new Firebase(FIREBASE_URL).child("users");
     private Firebase mSamplesRef = new Firebase(FIREBASE_URL).child("measurements");
-    private Firebase mSamplesRefToWrite;
+    private Firebase mSampleRefToWrite;
 
     private boolean mIsBound;
-    private boolean mUserExist = false;
+    private boolean mUserSamplesBranchExist;
     private int mCounter;
     private Context mContext = this;
     private String mAccountName;
@@ -83,6 +81,7 @@ public class MainActivity extends AppCompatActivity
     private GoogleApiClient mGoogleApiClient;
     private ProgressDialog mProgressDialog;
     private HashMap<Integer, String> mUsersUid = new HashMap<>();
+    private HashMap<String, String> mSampleRefsToRead = new HashMap<>();
     private ServiceConnection mConnection = new ServiceConnection() {
         private AccelerometerService mAccBoundService;
 
@@ -165,8 +164,8 @@ public class MainActivity extends AppCompatActivity
             Log.d(MAIN_TAG, "Got cached sign-in");
             GoogleSignInResult result = opr.get();
             handleSignInResult(result);
-            initSamplesRefToWrite();
-            mUserExist = true;
+//            initSampleRefToWrite();
+//            mUserExist = true;
         } else {
             // If the user has not previously signed in on this device or the sign-in has expired,
             // this asynchronous branch will attempt to sign in the user silently.  Cross-device
@@ -177,7 +176,7 @@ public class MainActivity extends AppCompatActivity
                 public void onResult(@NonNull GoogleSignInResult googleSignInResult) {
                     hideProgressDialog();
                     handleSignInResult(googleSignInResult);
-                    mUserExist = true;
+//                    mUserExist = true;
                 }
             });
         }
@@ -190,7 +189,7 @@ public class MainActivity extends AppCompatActivity
         mSamplesRef.addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-                mCounter++;
+//                mCounter++;
             }
 
             @Override
@@ -215,28 +214,17 @@ public class MainActivity extends AppCompatActivity
         });
 
         mUsersRef.addChildEventListener(new ChildEventListener() {
-            int counter;
+//            int counter;
 
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-                counter++;
+//                counter++;
                 User user = dataSnapshot.getValue(User.class);
                 int navMenuItemId = user.getUid().hashCode();
-
+//
                 initNavigationMenu(navMenuItemId, user);
                 setUsersUid(navMenuItemId, user);
-                createUserSamplesBranch(user);
-            }
-
-            private void createUserSamplesBranch(User user) {
-                if (counter == mCounter) {
-                    mUserExist = true;
-                }
-
-                if (!mUserExist) {
-                    mFirebaseRef.child("measurements").push().child("user")
-                            .child(user.getUid()).setValue(Boolean.TRUE);
-                }
+//                createUserSamplesBranch(user);
             }
 
             private void initNavigationMenu(int itemId, User user) {
@@ -308,7 +296,7 @@ public class MainActivity extends AppCompatActivity
                 new RetrieveTokenTask().execute(mAccountName);
             }
 
-            updateUI(true);
+//            updateUI(true);
         } else {
             // Signed out, show unauthenticated UI.
             updateUI(false);
@@ -344,7 +332,7 @@ public class MainActivity extends AppCompatActivity
         if (signedIn) {
             Log.d(MAIN_TAG, "MainActivity: updateUI -- true");
 
-            updateUI(String.valueOf(mSamplesRef));
+//            updateUI(String.valueOf(mSamplesRef));
 
             if (mFirebaseRef.getAuth() != null) {
                 initNavigationHeader(mFirebaseRef.getAuth());
@@ -376,30 +364,30 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private void updateUI(String samplesRef) {
-        findViewById(R.id.rl_unauthorised_content).setVisibility(View.GONE);
+//    private void updateUI(String samplesRef) {
+//        findViewById(R.id.rl_unauthorised_content).setVisibility(View.GONE);
+//
+//        DataFragment fragment = createFragmentWithFbUrl(samplesRef);
+//
+//        if (getSupportFragmentManager().getFragments() == null) {
+//            getSupportFragmentManager().beginTransaction()
+//                    .add(R.id.ll_content_main, fragment, "frag_data_tag")
+//                    .commit();
+//        } else {
+//            getSupportFragmentManager().beginTransaction()
+//                    .replace(R.id.ll_content_main, fragment, "frag_data_tag")
+//                    .commit();
+//        }
+//    }
 
-        DataFragment fragment = createFragmentWithFbUrl(samplesRef);
-
-        if (getSupportFragmentManager().getFragments() == null) {
-            getSupportFragmentManager().beginTransaction()
-                    .add(R.id.ll_content_main, fragment, "frag_data_tag")
-                    .commit();
-        } else {
-            getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.ll_content_main, fragment, "frag_data_tag")
-                    .commit();
-        }
-    }
-
-    private DataFragment createFragmentWithFbUrl(String samplesRef) {
-        DataFragment fragment = new DataFragment();
-        // Supply FireBase URL input as an argument.
-        Bundle args = new Bundle();
-        args.putString("samplesRef", samplesRef);
-        fragment.setArguments(args);
-        return fragment;
-    }
+//    private DataFragment createFragmentWithFbUrl(String samplesRef) {
+//        DataFragment fragment = new DataFragment();
+//        // Supply FireBase URL input as an argument.
+//        Bundle args = new Bundle();
+//        args.putString("samplesRef", samplesRef);
+//        fragment.setArguments(args);
+//        return fragment;
+//    }
 
     @Override
     public void onClick(View v) {
@@ -424,9 +412,7 @@ public class MainActivity extends AppCompatActivity
                 new ResultCallback<Status>() {
                     @Override
                     public void onResult(Status status) {
-
                         updateUI(false);
-
                     }
                 });
 
@@ -453,7 +439,7 @@ public class MainActivity extends AppCompatActivity
             if (id == mNavigationMenu.getItem(i).getItemId()) {
                 Log.d(MAIN_TAG, "NavMenuItem: " + mNavigationMenu.getItem(i).getTitle()
                         + " selected");
-                updateUI(getUserSamplesRef(mUsersUid.get(mNavigationMenu.getItem(i).getItemId())));
+//                updateUI(getUserSamplesRef(mUsersUid.get(mNavigationMenu.getItem(i).getItemId())));
             }
         }
         if (id == R.id.nav_sign_in) {
@@ -490,7 +476,7 @@ public class MainActivity extends AppCompatActivity
         // supporting component replacement by other applications).
 
         Intent intent = new Intent(this, AccelerometerService.class);
-        intent.putExtra("samplesRef", String.valueOf(mSamplesRefToWrite));
+        intent.putExtra("samplesRef", String.valueOf(mSampleRefToWrite));
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
     }
@@ -531,9 +517,9 @@ public class MainActivity extends AppCompatActivity
         }
 
         @Override
-        protected void onPostExecute(String s) {
-            super.onPostExecute(s);
-            authFireBase(s);
+        protected void onPostExecute(String token) {
+            super.onPostExecute(token);
+            authFireBase(token);
         }
     }
 
@@ -547,19 +533,6 @@ public class MainActivity extends AppCompatActivity
                 public void onAuthenticated(AuthData authData) {
                     // Save authenticated user to FireBase
                     saveUserToFirebase(authData);
-                    initNavigationHeader(mFirebaseRef.getAuth());
-                    checkUserExist((String) authData.getProviderData().get("id"));
-                    initSamplesRefToWrite();
-                }
-
-                private void saveUserToFirebase(AuthData authData) {
-                    Log.d(MAIN_TAG, "MainActivity; saveUserToFirebase");
-                    final Map<String, Object> providerData = authData.getProviderData();
-                    User user = new User((String) providerData.get("id"),
-                            (String) providerData.get("displayName"),
-                            (String) providerData.get("email"),
-                            (String) providerData.get("profileImageURL"));
-                    mUsersRef.child((String) providerData.get("id")).setValue(user);
                 }
 
                 @Override
@@ -570,17 +543,34 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    public void initSamplesRefToWrite() {
+    private void saveUserToFirebase(AuthData authData) {
+        Log.d(MAIN_TAG, "MainActivity; saveUserToFirebase");
+        final Map<String, Object> providerData = authData.getProviderData();
+        User user = new User((String) providerData.get("id"),
+                (String) providerData.get("displayName"),
+                (String) providerData.get("email"),
+                (String) providerData.get("profileImageURL"));
+        mUsersRef.child((String) providerData.get("id")).setValue(user);
+
+        initUserSamplesBranchExist();
+        createUserSamplesBranch();
+        initSampleRefToWrite();
+        initSampleRefsToReadFrom();
+    }
+
+    private void initUserSamplesBranchExist() {
+        mUserSamplesBranchExist = false;
         Query queryRef = mSamplesRef.orderByChild((String) mFirebaseRef
                 .getAuth().getProviderData().get("id"));
+
         queryRef.addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
                 if (dataSnapshot.child("user").getChildren().iterator().next().getKey()
                         .equals(mFirebaseRef.getAuth().getProviderData().get("id"))) {
-                    mSamplesRefToWrite = dataSnapshot.child("data").getRef();
-                    Log.d(MAIN_TAG, "initSamplesRefToWrite\nonChildAdded: "
-                            + String.valueOf(mSamplesRefToWrite));
+                    mUserSamplesBranchExist = true;
+                    Log.d(MAIN_TAG, "initUserSamplesBranchExist\nonChildAdded: "
+                            + String.valueOf(mUserSamplesBranchExist));
                 }
             }
 
@@ -606,13 +596,24 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    private Boolean checkUserExist(String id) {
-        mUserExist = false;
-        Query queryRef = mSamplesRef.orderByChild(id);
+    private void createUserSamplesBranch() {
+
+        Query queryRef = mUsersRef.orderByChild((String) mFirebaseRef
+                .getAuth().getProviderData().get("id"));
+
         queryRef.addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-                mUserExist = true;
+                if (dataSnapshot.getKey().equals(mFirebaseRef
+                        .getAuth().getProviderData().get("id"))) {
+                    if (!mUserSamplesBranchExist) {
+                        Log.d(MAIN_TAG, "createUserSamplesBranch\nonChildAdded: ");
+                        mSamplesRef.push().child("user")
+                                .child((String) mFirebaseRef
+                                        .getAuth().getProviderData().get("id"))
+                                .setValue(Boolean.TRUE);
+                    }
+                }
             }
 
             @Override
@@ -635,6 +636,77 @@ public class MainActivity extends AppCompatActivity
 
             }
         });
-        return mUserExist;
+
+        updateUI(true);
+
+    }
+
+    public void initSampleRefToWrite() {
+        Query queryRef = mSamplesRef.orderByChild((String) mFirebaseRef
+                .getAuth().getProviderData().get("id"));
+        queryRef.addChildEventListener(new ChildEventListener() {
+            @Override
+            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                if (dataSnapshot.child("user").getChildren().iterator().next().getKey()
+                        .equals(mFirebaseRef.getAuth().getProviderData().get("id"))) {
+                    mSampleRefToWrite = dataSnapshot.child("data").getRef();
+                    Log.d(MAIN_TAG, "initSampleRefToWrite\nonChildAdded: "
+                            + String.valueOf(mSampleRefToWrite));
+                }
+            }
+
+            @Override
+            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onChildRemoved(DataSnapshot dataSnapshot) {
+
+            }
+
+            @Override
+            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onCancelled(FirebaseError firebaseError) {
+
+            }
+        });
+    }
+
+    public void initSampleRefsToReadFrom() {
+        Query queryRef = mSamplesRef.orderByChild((String) mFirebaseRef
+                .getAuth().getProviderData().get("id"));
+        queryRef.addChildEventListener(new ChildEventListener() {
+            @Override
+            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                Log.d(MAIN_TAG, "initSampleRefsToReadFrom\nonChildAdded: "
+                        + String.valueOf(dataSnapshot.getRef()));
+            }
+
+            @Override
+            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onChildRemoved(DataSnapshot dataSnapshot) {
+
+            }
+
+            @Override
+            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+
+            }
+
+            @Override
+            public void onCancelled(FirebaseError firebaseError) {
+
+            }
+        });
     }
 }
+
