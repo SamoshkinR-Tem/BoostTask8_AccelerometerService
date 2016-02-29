@@ -13,7 +13,9 @@ import com.artsam.accelerometer.MainActivity;
 import com.artsam.accelerometer.R;
 import com.artsam.accelerometer.adapter.DataRecAdapter;
 import com.artsam.accelerometer.entity.Sample;
+import com.artsam.accelerometer.listener.MyChildEventListener;
 import com.artsam.accelerometer.view.MyPlotView;
+import com.firebase.client.Firebase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,8 +30,16 @@ public class DataFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        Log.d(MainActivity.MAIN_TAG, "DataFragment: onCreateView - "
-                + getArguments().getString(""));
+
+        Firebase samplesRef = null;
+
+        Log.d(MainActivity.MAIN_TAG, "DataFragment: onCreateView for "
+                + getArguments().getString("samplesRef"));
+
+        if(getArguments().getString("samplesRef") != null
+                && getArguments().getString("samplesRef") != "null") {
+            samplesRef = new Firebase(getArguments().getString("samplesRef"));
+        }
 
         View data = inflater.inflate(R.layout.frag_data, container, false);
 
@@ -40,13 +50,12 @@ public class DataFragment extends Fragment {
         mPlotView = (MyPlotView) data.findViewById(R.id.my_plot_View);
         mPlotView.setSamples(mSamples);
 
-//        if(MainActivity.sSamplesRef != null){
-//            MainActivity.sChildEventListener = MainActivity.sSamplesRef
-//                    .addChildEventListener(new MyChildEventListener(mRecView, mPlotView));
-//        } else {
-//            data.findViewById(R.id.tv_instead_rv).setVisibility(View.VISIBLE);
-//            data.findViewById(R.id.rv_samples).setVisibility(View.GONE);
-//        }
+        if(samplesRef != null){
+            samplesRef.addChildEventListener(new MyChildEventListener(mRecView, mPlotView));
+        } else {
+            data.findViewById(R.id.tv_instead_rv).setVisibility(View.VISIBLE);
+            data.findViewById(R.id.rv_samples).setVisibility(View.GONE);
+        }
 
         return data;
     }

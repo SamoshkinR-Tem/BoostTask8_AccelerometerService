@@ -34,7 +34,6 @@ public class AccelerometerService extends Service
      */
     public class AccelerometerBinder extends Binder {
         public AccelerometerService getService() {
-            Log.d(MainActivity.MAIN_TAG, "AccelerometerBinder: getService");
             return AccelerometerService.this;
         }
     }
